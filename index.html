@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة محطة الوقود</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* تم إضافة أسلوب جديد لإدارة المضخات */
+        .pump-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .pump-table th,
+        .pump-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        .pump-table th {
+            background-color: #f8f9fa;
+        }
+        .pump-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .pump-input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+        .volume-cell {
+            font-weight: bold;
+            color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-gas-pump"></i>
+                <h1>نظام إدارة محطة الوقود</h1>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">م</div>
+                <div>
+                    <div>محمد أحمد</div>
+                    <small>مدير المحطة</small>
+                </div>
+            </div>
+        </header>
+        <div class="tabs">
+            <div class="tab active" onclick="openTab('dashboard', this)">لوحة التحكم</div>
+            <div class="tab" onclick="openTab('shifts', this)">إدارة الورديات</div>
+            <div class="tab" onclick="openTab('pumps', this)">إدارة المضخات</div>
+            <div class="tab" onclick="openTab('partners', this)">إدارة الشركاء</div>
+        </div>
+
+        <!-- محتوى صفحة إدارة المضخات -->
+        <div id="pumps" class="tab-content">
+            <div class="card">
+                <h2>إدارة المضخات والخزانات</h2>
+                <div class="form-group">
+                    <label for="pumpType">نوع الوقود</label>
+                    <select id="pumpType">
+                        <option value="95">بنزين 95</option>
+                        <option value="91">بنزين 91</option>
+                        <option value="diesel">ديزل</option>
+                        <option value="gas">غاز</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pumpNumber">رقم المضخة</label>
+                    <select id="pumpNumber">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="initialReading">قراءة العداد الابتدائية</label>
+                    <input type="number" id="initialReading" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="finalReading">قراءة العداد النهائية</label>
+                    <input type="number" id="finalReading" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>الكمية المباعة</label>
+                    <div id="volumeResult" style="font-size: 1.2rem; font-weight: bold; color: var(--success); padding: 10px; background: #f8f9fa; border-radius: 8px;">0 لتر</div>
+                </div>
+                <button class="btn btn-success" onclick="savePumpReading()">حفظ القراءة</button>
+
+                <h3 style="margin-top: 30px;">سجل قراءات المضخات</h3>
+                <div style="overflow-x: auto;">
+                    <table class="pump-table" id="pump-readings-table">
+                        <thead>
+                            <tr>
+                                <th>التاريخ</th>
+                                <th>الوقت</th>
+                                <th>رقم المضخة</th>
+                                <th>نوع الوقود</th>
+                                <th>القراءة الابتدائية</th>
+                                <th>القراءة النهائية</th>
+                                <th>الكمية (لتر)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- سيتم ملء البيانات هنا -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- المحتوى المتبقي كما هو -->
+        <div id="dashboard" class="tab-content active">
+            <!-- محتوى لوحة التحكم كما هو -->
+        </div>
+        <div id="shifts" class="tab-content">
+            <!-- محتوى إدارة الورديات كما هو -->
+        </div>
+        <div id="partners" class="tab-content">
+            <!-- محتوى إدارة الشركاء كما هو -->
+        </div>
+        <footer>
+            <p>© 2025 نظام إدارة محطة الوقود - جميع الحقوق محفوظة</p>
+            <p>تم التطوير باستخدام أحدث التقنيات لضمان الكفاءة والدقة</p>
+        </footer>
+    </div>
+
+    <script>
+        // تخزين قراءات المضخات
+        let pumpReadings = [];
+
+        // تحميل البيانات المحفوظة من localStorage
+        function loadPumpReadings() {
+            const saved = localStorage.getItem('pumpReadings');
+            if (saved) {
+                pumpReadings = JSON.parse(saved);
+                renderPumpReadings();
+            }
+        }
+
+        // حفظ القراءة
+        function savePumpReading() {
+            const pumpNumber = document.getElementById('pumpNumber').value;
+            const pumpType = document.getElementById('pumpType').value;
+            const initial = parseFloat(document.getElementById('initialReading').value) || 0;
+            const final = parseFloat(document.getElementById('finalReading').value) || 0;
+
+            if (final < initial) {
+                showNotification('لا يمكن أن تكون القراءة النهائية أقل من القراءة الابتدائية', 'error');
+                return;
+            }
+
+            const volume = final - initial;
+
+            const reading = {
+                date: new Date().toLocaleDateString('ar-SA'),
+                time: new Date().toLocaleTimeString('ar-SA'),
+                pumpNumber: pumpNumber,
+                pumpType: pumpType,
+                initial: initial,
+                final: final,
+                volume: volume
+            };
+
+            pumpReadings.push(reading);
+            localStorage.setItem('pumpReadings', JSON.stringify(pumpReadings));
+
+            // تحديث العرض
+            renderPumpReadings();
+            updateDashboardStats();
+
+            // إعادة تعيين الحقول
+            document.getElementById('initialReading').value = final;
+            document.getElementById('finalReading').value = final;
+            document.getElementById('volumeResult').textContent = '0 لتر';
+
+            showNotification('تم حفظ قراءة المضخة بنجاح', 'success');
+        }
+
+        // عرض قراءات المضخات
+        function renderPumpReadings() {
+            const tableBody = document.querySelector('#pump-readings-table tbody');
+            tableBody.innerHTML = '';
+
+            pumpReadings.slice().reverse().forEach(reading => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${reading.date}</td>
+                    <td>${reading.time}</td>
+                    <td>${reading.pumpNumber}</td>
+                    <td>${getFuelType(reading.pumpType)}</td>
+                    <td>${reading.initial}</td>
+                    <td>${reading.final}</td>
+                    <td class="volume-cell">${reading.volume} لتر</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // تحويل نوع الوقود إلى اسم
+        function getFuelType(type) {
+            switch(type) {
+                case '95': return 'بنزين 95';
+                case '91': return 'بنزين 91';
+                case 'diesel': return 'ديزل';
+                case 'gas': return 'غاز';
+                default: return '';
+            }
+        }
+
+        // تحديث الإحصائيات في لوحة التحكم
+        function updateDashboardStats() {
+            const fuelTotals = { '95': 0, '91': 0, 'diesel': 0, 'gas': 0 };
+
+            pumpReadings.forEach(reading => {
+                fuelTotals[reading.pumpType] += reading.volume;
+            });
+
+            document.getElementById('fuel-95').textContent = fuelTotals['95'].toLocaleString();
+            document.getElementById('fuel-91').textContent = fuelTotals['91'].toLocaleString();
+            document.getElementById('diesel').textContent = fuelTotals['diesel'].toLocaleString();
+        }
+
+        // حساب الكمية المباعة
+        function calculateVolume() {
+            const initial = parseFloat(document.getElementById('initialReading').value) || 0;
+            const final = parseFloat(document.getElementById('finalReading').value) || 0;
+
+            if (final < initial) {
+                document.getElementById('volumeResult').textContent = 'لا يمكن أن تكون القراءة النهائية أقل من الابتدائية';
+                return;
+            }
+
+            const volume = final - initial;
+            document.getElementById('volumeResult').textContent = `${volume} لتر`;
+        }
+
+        // تحديث الكمية المباعة عند إدخال القراءات
+        document.getElementById('initialReading')?.addEventListener('input', calculateVolume);
+        document.getElementById('finalReading')?.addEventListener('input', calculateVolume);
+
+        // تحميل البيانات عند بدء التشغيل
+        document.addEventListener('DOMContentLoaded', loadPumpReadings);
+    </script>
+</body>
+</html>
