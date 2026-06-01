@@ -10,6 +10,7 @@
     <header>
         <h1>نظام إدارة محطة الوقود</h1>
         <nav>
+            <button onclick="showSection('settings-sec')">الإعدادات</button>
             <button onclick="showSection('setup')">الإعداد الأولي</button>
             <button onclick="showSection('shift')">الورديات</button>
             <button onclick="showSection('incomes_expenses')">إيرادات ومصروفات</button>
@@ -18,6 +19,26 @@
     </header>
 
     <main id="app-content">
+        <!-- قسم الإعدادات -->
+        <section id="settings-sec" class="view-section" style="display: none;">
+            <h2>إعدادات الأسعار</h2>
+            <div class="form-container">
+                <form id="form-settings" onsubmit="saveSettings(event)">
+                    <label>سعر شراء البنزين:</label>
+                    <input type="number" id="set-gas-buy" step="0.001" required>
+                    <label>سعر بيع البنزين:</label>
+                    <input type="number" id="set-gas-sell" step="0.001" required>
+
+                    <label>سعر شراء الديزل:</label>
+                    <input type="number" id="set-diesel-buy" step="0.001" required>
+                    <label>سعر بيع الديزل:</label>
+                    <input type="number" id="set-diesel-sell" step="0.001" required>
+
+                    <button type="submit">حفظ الإعدادات</button>
+                </form>
+            </div>
+        </section>
+
         <!-- قسم الإعداد الأولي -->
         <section id="setup" class="view-section active">
             <h2>الإعداد الأولي للمضخات (First Setup)</h2>
@@ -43,27 +64,43 @@
             <h2>إدارة الورديات (Shift Operations)</h2>
             <div class="actions">
                 <button id="btn-open-shift" onclick="openShift()">فتح وردية جديدة</button>
-                <button id="btn-close-group" onclick="closeGroupShift()" style="display: none;">إغلاق جماعي للوردية</button>
+                <button id="btn-close-group" onclick="closeGroupShift()" style="display: none;">إغلاق الوردية بالكامل</button>
             </div>
             <div id="shift-status">لا توجد وردية مفتوحة حالياً.</div>
 
             <div id="shift-operations" style="display: none;">
+                <p style="color: #555; margin-bottom: 15px;">اختر المضخات (مثلاً 4 مضخات)، أدخل القراءة الجديدة لها، ثم أدخل الإيراد الفعلي واسم الموظف للإغلاق المجمع للموظف.</p>
                 <table id="shift-table">
                     <thead>
                         <tr>
+                            <th>تحديد</th>
                             <th>المضخة</th>
                             <th>القراءة الافتتاحية</th>
                             <th>القراءة الجديدة</th>
                             <th>الكمية (لتر)</th>
                             <th>الإيراد المتوقع</th>
-                            <th>الإيراد الفعلي (نقدي/أخرى)</th>
-                            <th>إغلاق المضخة</th>
+                            <th>الحالة</th>
                         </tr>
                     </thead>
                     <tbody id="shift-tbody">
                         <!-- يتم تعبئته عبر JavaScript -->
                     </tbody>
                 </table>
+
+                <div class="form-container" style="margin-top: 20px;">
+                    <h3>إغلاق المضخات المحددة لموظف</h3>
+                    <div style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div>
+                            <label>اسم الموظف:</label><br>
+                            <input type="text" id="operator-name" placeholder="اسم العامل" style="width: 150px;">
+                        </div>
+                        <div>
+                            <label>الإيراد الفعلي الكلي:</label><br>
+                            <input type="number" id="group-actual-rev" step="0.01" placeholder="الإجمالي المحصل" style="width: 150px;">
+                        </div>
+                        <button onclick="closeSelectedPumps()">إغلاق المضخات المحددة</button>
+                    </div>
+                </div>
             </div>
         </section>
 

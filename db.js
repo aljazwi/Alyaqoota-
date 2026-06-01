@@ -1,6 +1,6 @@
 // db.js
 const DB_NAME = "StationAppDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db;
 
@@ -89,9 +89,23 @@ function initDB() {
             // 10. settings (الإعدادات)
             if (!db.objectStoreNames.contains('settings')) {
                 const settingsStore = db.createObjectStore('settings', { keyPath: 'key' });
-                settingsStore.add({ key: 'gasoline_price', value: 2.18 });
-                settingsStore.add({ key: 'diesel_price', value: 2.90 });
+                settingsStore.add({ key: 'gasoline_buy_price', value: 2.00 });
+                settingsStore.add({ key: 'gasoline_sell_price', value: 2.18 });
+                settingsStore.add({ key: 'diesel_buy_price', value: 2.50 });
+                settingsStore.add({ key: 'diesel_sell_price', value: 2.90 });
                 settingsStore.add({ key: 'variance_limit_percent', value: 0.5 });
+            } else {
+                // Handle upgrade from V1 to V2
+                if (event.oldVersion < 2) {
+                    const reqStore = request.transaction.objectStore('settings');
+                    reqStore.delete('gasoline_price');
+                    reqStore.delete('diesel_price');
+
+                    reqStore.put({ key: 'gasoline_buy_price', value: 2.00 });
+                    reqStore.put({ key: 'gasoline_sell_price', value: 2.18 });
+                    reqStore.put({ key: 'diesel_buy_price', value: 2.50 });
+                    reqStore.put({ key: 'diesel_sell_price', value: 2.90 });
+                }
             }
         };
     });

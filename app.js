@@ -25,7 +25,40 @@ function showSection(sectionId) {
         renderShiftTable();
     } else if (sectionId === 'reports') {
         generateReport();
+    } else if (sectionId === 'settings-sec') {
+        loadSettings();
     }
+}
+
+// --------------------------------------------------------------------------
+// 0. الإعدادات (Settings)
+// --------------------------------------------------------------------------
+
+async function loadSettings() {
+    const gasBuy = await getData('settings', 'gasoline_buy_price');
+    const gasSell = await getData('settings', 'gasoline_sell_price');
+    const dieselBuy = await getData('settings', 'diesel_buy_price');
+    const dieselSell = await getData('settings', 'diesel_sell_price');
+
+    if (gasBuy) document.getElementById('set-gas-buy').value = gasBuy.value;
+    if (gasSell) document.getElementById('set-gas-sell').value = gasSell.value;
+    if (dieselBuy) document.getElementById('set-diesel-buy').value = dieselBuy.value;
+    if (dieselSell) document.getElementById('set-diesel-sell').value = dieselSell.value;
+}
+
+window.saveSettings = async function(event) {
+    event.preventDefault();
+    const gasBuy = parseFloat(document.getElementById('set-gas-buy').value);
+    const gasSell = parseFloat(document.getElementById('set-gas-sell').value);
+    const dieselBuy = parseFloat(document.getElementById('set-diesel-buy').value);
+    const dieselSell = parseFloat(document.getElementById('set-diesel-sell').value);
+
+    await putData('settings', { key: 'gasoline_buy_price', value: gasBuy });
+    await putData('settings', { key: 'gasoline_sell_price', value: gasSell });
+    await putData('settings', { key: 'diesel_buy_price', value: dieselBuy });
+    await putData('settings', { key: 'diesel_sell_price', value: dieselSell });
+
+    alert("تم حفظ الإعدادات بنجاح.");
 }
 
 // --------------------------------------------------------------------------
@@ -150,19 +183,22 @@ async function renderShiftTable() {
     tbody.innerHTML = '';
 
     const pumps = await getAllData('pumps');
-    const settingsGas = await getData('settings', 'gasoline_price');
-    const settingsDiesel = await getData('settings', 'diesel_price');
+    const settingsGasSell = await getData('settings', 'gasoline_sell_price');
+    const settingsDieselSell = await getData('settings', 'diesel_sell_price');
 
     const allReadings = await getAllData('shift_readings');
     const currentReadings = allReadings.filter(r => r.shift_id === currentShiftId);
 
     for (const reading of currentReadings) {
         const pump = pumps.find(p => p.id === reading.pump_id);
-        const price = pump.type === 'gasoline' ? settingsGas.value : settingsDiesel.value;
+        const price = pump.type === 'gasoline' ? settingsGasSell.value : settingsDieselSell.value;
         const isClosed = reading.status === 'closed';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td>
+                <input type="checkbox" class="pump-select" value="${pump.id}" data-reading-id="${reading.id}" data-opening="${reading.opening_reading}" data-price="${price}" data-type="${pump.type}" ${isClosed ? 'disabled' : ''}>
+            </td>
             <td>${pump.id} (${pump.type === 'gasoline' ? 'بنزين' : 'ديزل'})</td>
             <td>${reading.opening_reading.toFixed(2)}</td>
             <td>
@@ -171,10 +207,7 @@ async function renderShiftTable() {
             <td id="shift-vol-${pump.id}">${isClosed ? (reading.closing_reading - reading.opening_reading).toFixed(2) : '0.00'}</td>
             <td id="shift-exp-rev-${pump.id}">${isClosed ? reading.expected_revenue.toFixed(2) : '0.00'}</td>
             <td>
-                <input type="number" id="shift-act-rev-${pump.id}" value="${reading.actual_revenue !== null ? reading.actual_revenue : ''}" step="0.01" ${isClosed ? 'readonly' : ''} placeholder="المبلغ المحصل">
-            </td>
-            <td>
-                ${isClosed ? '<span class="btn-success" style="padding: 5px; border-radius:3px; color:white;">مغلق</span>' : `<button onclick="closePump('${reading.id}', '${pump.id}', ${reading.opening_reading}, ${price})">إغلاق</button>`}
+                ${isClosed ? '<span class="btn-success" style="padding: 5px; border-radius:3px; color:white;">مغلق</span>' : '<span style="color:red">مفتوح</span>'}
             </td>
         `;
         tbody.appendChild(tr);
@@ -193,55 +226,128 @@ window.updateRowCalcs = function(pumpId, openingReading, pricePerLiter) {
     expRevElem.innerText = expRev.toFixed(2);
 }
 
-window.closePump = async function(readingId, pumpId, openingReading, pricePerLiter) {
-    const newReading = parseFloat(document.getElementById(`shift-new-reading-${pumpId}`).value);
-    const actualRev = parseFloat(document.getElementById(`shift-act-rev-${pumpId}`).value);
+window.closeSelectedPumps = async function() {
+    const operatorName = document.getElementById('operator-name').value;
+    const actualRev = parseFloat(document.getElementById('group-actual-rev').value);
 
-    if (isNaN(newReading) || newReading < openingReading) {
-        alert("القراءة الجديدة غير صحيحة.");
+    if (!operatorName) {
+        alert("يرجى إدخال اسم الموظف.");
         return;
     }
+
     if (isNaN(actualRev)) {
-        alert("يرجى إدخال الإيراد الفعلي.");
+        alert("يرجى إدخال الإيراد الفعلي الكلي.");
         return;
     }
 
-    const vol = calculateExpectedVolume(openingReading, newReading);
-    const expRev = calculateExpectedRevenue(vol, pricePerLiter);
-
-    const cashVariance = actualRev - expRev;
-
-    const limitSetting = await getData('settings', 'variance_limit_percent');
-    const variancePercent = expRev > 0 ? Math.abs(cashVariance) / expRev * 100 : 0;
-
-    if (variancePercent > limitSetting.value) {
-         if (!confirm(`تحذير: نسبة الانحراف (${variancePercent.toFixed(2)}%) تتجاوز الحد المسموح. هل تريد المتابعة؟`)) {
-             return;
-         }
+    const checkboxes = document.querySelectorAll('.pump-select:checked');
+    if (checkboxes.length === 0) {
+        alert("يرجى تحديد مضخة واحدة على الأقل.");
+        return;
     }
 
-    // Update Reading
-    readingId = parseInt(readingId);
-    const reading = await getData('shift_readings', readingId);
-    const oldReadingData = { ...reading };
+    let totalExpectedRev = 0;
+    let totalFuelCost = 0;
 
-    reading.closing_reading = newReading;
-    reading.expected_revenue = expRev;
-    reading.actual_revenue = actualRev;
-    reading.cash_variance = cashVariance;
-    reading.status = 'closed';
+    const gasBuy = await getData('settings', 'gasoline_buy_price');
+    const dieselBuy = await getData('settings', 'diesel_buy_price');
 
-    await putData('shift_readings', reading);
-    await logAudit('shift_readings', reading.id, 'CLOSE_PUMP', oldReadingData, reading, 'Admin');
+    const updates = [];
 
-    // Update Pump
-    const pump = await getData('pumps', pumpId);
-    const oldPumpData = { ...pump };
-    pump.current_reading = newReading;
-    await putData('pumps', pump);
-    await logAudit('pumps', pumpId, 'UPDATE_READING_FROM_SHIFT', oldPumpData, pump, 'Admin');
+    for (const cb of checkboxes) {
+        const pumpId = cb.value;
+        const readingId = parseInt(cb.dataset.readingId);
+        const openingReading = parseFloat(cb.dataset.opening);
+        const pricePerLiter = parseFloat(cb.dataset.price);
+        const pumpType = cb.dataset.type;
 
-    alert(`تم إغلاق المضخة ${pumpId} بنجاح. الفارق النقدي: ${cashVariance.toFixed(2)}`);
+        const newReading = parseFloat(document.getElementById(`shift-new-reading-${pumpId}`).value);
+
+        if (isNaN(newReading) || newReading < openingReading) {
+            alert(`القراءة الجديدة للمضخة ${pumpId} غير صحيحة.`);
+            return;
+        }
+
+        const vol = calculateExpectedVolume(openingReading, newReading);
+        const expRev = calculateExpectedRevenue(vol, pricePerLiter);
+
+        const costPrice = pumpType === 'gasoline' ? gasBuy.value : dieselBuy.value;
+        const fuelCost = vol * costPrice;
+
+        totalExpectedRev += expRev;
+        totalFuelCost += fuelCost;
+
+        updates.push({
+            readingId,
+            pumpId,
+            newReading,
+            expRev
+        });
+    }
+
+    const cashVariance = actualRev - totalExpectedRev;
+
+    // Distribute the actual revenue and variance proportionally based on expected revenue
+    // to preserve individual pump audit trails.
+    let remainingActual = actualRev;
+    let remainingVariance = cashVariance;
+
+    for (let i = 0; i < updates.length; i++) {
+        const u = updates[i];
+        const isLast = i === updates.length - 1;
+
+        let pumpActual = 0;
+        let pumpVariance = 0;
+
+        if (totalExpectedRev > 0) {
+             const ratio = u.expRev / totalExpectedRev;
+             pumpActual = isLast ? remainingActual : parseFloat((actualRev * ratio).toFixed(2));
+             pumpVariance = isLast ? remainingVariance : parseFloat((cashVariance * ratio).toFixed(2));
+        } else {
+             // Edge case: total expected revenue is 0, but we somehow have actual revenue
+             pumpActual = isLast ? remainingActual : 0;
+             pumpVariance = isLast ? remainingVariance : 0;
+        }
+
+        remainingActual -= pumpActual;
+        remainingVariance -= pumpVariance;
+
+        const reading = await getData('shift_readings', u.readingId);
+        reading.closing_reading = u.newReading;
+        reading.expected_revenue = u.expRev;
+        reading.actual_revenue = pumpActual;
+        reading.cash_variance = pumpVariance;
+        reading.status = 'closed';
+        reading.operator = operatorName;
+        await putData('shift_readings', reading);
+
+        const pump = await getData('pumps', u.pumpId);
+        pump.current_reading = u.newReading;
+        await putData('pumps', pump);
+    }
+
+    // Add grouped actual revenue to daily ledger
+    await addData('daily_ledger', {
+        date: new Date().toISOString().split('T')[0],
+        entry_type: 'credit',
+        amount: actualRev,
+        category: `Fuel Sales (${operatorName})`,
+        reference_id: currentShiftId,
+        timestamp: new Date().toISOString()
+    });
+
+    // Add fuel cost to daily ledger
+    await addData('daily_ledger', {
+        date: new Date().toISOString().split('T')[0],
+        entry_type: 'debit',
+        amount: totalFuelCost,
+        category: `Cost of Goods Sold (${operatorName})`,
+        reference_id: currentShiftId,
+        timestamp: new Date().toISOString()
+    });
+
+    alert(`تم إغلاق المضخات بنجاح. إجمالي المتوقع: ${totalExpectedRev.toFixed(2)}, الفارق: ${cashVariance.toFixed(2)}`);
+    document.getElementById('group-actual-rev').value = '';
     renderShiftTable();
 }
 
@@ -253,20 +359,18 @@ async function closeGroupShift() {
 
     const unclosed = currentReadings.filter(r => r.status !== 'closed');
     if (unclosed.length > 0) {
-        alert("يرجى إغلاق جميع المضخات أولاً قبل الإغلاق الجماعي.");
+        alert("يرجى إغلاق جميع المضخات أولاً قبل إغلاق الوردية.");
         return;
     }
 
     let totalExp = 0;
     let totalAct = 0;
     let totalCashVar = 0;
-    let totalVol = 0;
 
     for (const r of currentReadings) {
         totalExp += r.expected_revenue;
         totalAct += r.actual_revenue;
         totalCashVar += r.cash_variance;
-        totalVol += (r.closing_reading - r.opening_reading);
     }
 
     const groupClosure = {
@@ -281,15 +385,8 @@ async function closeGroupShift() {
 
     await addData('group_closures', groupClosure);
 
-    // Add to daily ledger
-    await addData('daily_ledger', {
-        date: new Date().toISOString().split('T')[0],
-        entry_type: 'credit',
-        amount: totalAct,
-        category: 'Fuel Sales',
-        reference_id: currentShiftId,
-        timestamp: new Date().toISOString()
-    });
+    // Note: We no longer add to daily_ledger here, because individual or grouped pump closures
+    // (via closeSelectedPumps) already post to the daily_ledger to attribute to specific operators.
 
     // Close shift
     const shift = await getData('shifts', currentShiftId);
@@ -297,7 +394,7 @@ async function closeGroupShift() {
     shift.timestamp_close = new Date().toISOString();
     await putData('shifts', shift);
 
-    alert("تم الإغلاق الجماعي للوردية بنجاح وتم ترحيل الإيرادات لدفتر الأستاذ.");
+    alert("تم إغلاق الوردية بنجاح.");
     checkActiveShift();
 }
 
@@ -355,23 +452,28 @@ window.generateReport = async function() {
     const todayLedger = ledger.filter(entry => entry.date === todayDate);
 
     let fuelRevenue = 0;
+    let fuelCost = 0;
     let otherRevenue = 0;
     let totalExpenses = 0;
 
     todayLedger.forEach(entry => {
         if (entry.entry_type === 'credit') {
-            if (entry.category === 'Fuel Sales') {
+            if (entry.category && entry.category.startsWith('Fuel Sales')) {
                 fuelRevenue += entry.amount;
             } else {
                 otherRevenue += entry.amount;
             }
         } else if (entry.entry_type === 'debit') {
-            totalExpenses += entry.amount;
+            if (entry.category && entry.category.startsWith('Cost of Goods Sold')) {
+                fuelCost += entry.amount;
+            } else {
+                totalExpenses += entry.amount;
+            }
         }
     });
 
     const grossIncome = fuelRevenue + otherRevenue;
-    const netProfit = grossIncome - totalExpenses;
+    const netProfit = grossIncome - totalExpenses - fuelCost;
 
     const reportHtml = `
         <div class="report-card">
@@ -389,11 +491,15 @@ window.generateReport = async function() {
                 <strong>${grossIncome.toFixed(2)}</strong>
             </div>
             <div class="flex-row" style="color: #dc3545;">
-                <span>إجمالي المصروفات:</span>
+                <span>تكلفة الوقود المباع (Cost of Goods Sold):</span>
+                <span>${fuelCost.toFixed(2)}</span>
+            </div>
+            <div class="flex-row" style="color: #dc3545;">
+                <span>إجمالي المصروفات الأخرى:</span>
                 <span>${totalExpenses.toFixed(2)}</span>
             </div>
             <div class="flex-row" style="background-color: #e9ecef; padding: 10px; border-radius: 4px; margin-top: 10px;">
-                <strong>صافي الربح:</strong>
+                <strong>صافي الربح الفعلي:</strong>
                 <strong>${netProfit.toFixed(2)}</strong>
             </div>
         </div>
