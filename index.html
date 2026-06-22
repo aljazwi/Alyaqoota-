@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاسبة محطة الوقود (Offline)</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>نظام إدارة محطة الوقود</h1>
+        <nav>
+            <button onclick="showSection('settings-sec')">الإعدادات</button>
+            <button onclick="showSection('setup')">الإعداد الأولي</button>
+            <button onclick="showSection('shift')">الورديات</button>
+            <button onclick="showSection('incomes_expenses')">إيرادات ومصروفات</button>
+            <button onclick="showSection('reports')">التقارير</button>
+        </nav>
+    </header>
+
+    <main id="app-content">
+        <!-- قسم الإعدادات -->
+        <section id="settings-sec" class="view-section" style="display: none;">
+            <h2>إعدادات الأسعار</h2>
+            <div class="form-container">
+                <form id="form-settings" onsubmit="saveSettings(event)">
+                    <label>سعر شراء البنزين:</label>
+                    <input type="number" id="set-gas-buy" step="0.001" required>
+                    <label>سعر بيع البنزين:</label>
+                    <input type="number" id="set-gas-sell" step="0.001" required>
+
+                    <label>سعر شراء الديزل:</label>
+                    <input type="number" id="set-diesel-buy" step="0.001" required>
+                    <label>سعر بيع الديزل:</label>
+                    <input type="number" id="set-diesel-sell" step="0.001" required>
+
+                    <button type="submit">حفظ الإعدادات</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- قسم الإعداد الأولي -->
+        <section id="setup" class="view-section active">
+            <h2>الإعداد الأولي للمضخات (First Setup)</h2>
+            <p>يرجى إدخال القراءة القديمة والحالية لكل مضخة لبدء التشغيل.</p>
+            <table id="setup-table">
+                <thead>
+                    <tr>
+                        <th>المضخة</th>
+                        <th>النوع</th>
+                        <th>القراءة القديمة</th>
+                        <th>القراءة الحالية</th>
+                        <th>حفظ</th>
+                    </tr>
+                </thead>
+                <tbody id="setup-tbody">
+                    <!-- يتم تعبئته عبر JavaScript -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- قسم الورديات -->
+        <section id="shift" class="view-section" style="display: none;">
+            <h2>إدارة الورديات (Shift Operations)</h2>
+            <div class="actions">
+                <button id="btn-open-shift" onclick="openShift()">فتح وردية جديدة</button>
+                <button id="btn-close-group" onclick="closeGroupShift()" style="display: none;">إغلاق الوردية بالكامل</button>
+            </div>
+            <div id="shift-status">لا توجد وردية مفتوحة حالياً.</div>
+
+            <div id="shift-operations" style="display: none;">
+                <p style="color: #555; margin-bottom: 15px;">اختر المضخات (مثلاً 4 مضخات)، أدخل القراءة الجديدة لها، ثم أدخل الإيراد الفعلي واسم الموظف للإغلاق المجمع للموظف.</p>
+                <table id="shift-table">
+                    <thead>
+                        <tr>
+                            <th>تحديد</th>
+                            <th>المضخة</th>
+                            <th>القراءة الافتتاحية</th>
+                            <th>القراءة الجديدة</th>
+                            <th>الكمية (لتر)</th>
+                            <th>الإيراد المتوقع</th>
+                            <th>الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shift-tbody">
+                        <!-- يتم تعبئته عبر JavaScript -->
+                    </tbody>
+                </table>
+
+                <div class="form-container" style="margin-top: 20px;">
+                    <h3>إغلاق المضخات المحددة لموظف</h3>
+                    <div style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div>
+                            <label>اسم الموظف:</label><br>
+                            <input type="text" id="operator-name" placeholder="اسم العامل" style="width: 150px;">
+                        </div>
+                        <div>
+                            <label>الإيراد الفعلي الكلي:</label><br>
+                            <input type="number" id="group-actual-rev" step="0.01" placeholder="الإجمالي المحصل" style="width: 150px;">
+                        </div>
+                        <button onclick="closeSelectedPumps()">إغلاق المضخات المحددة</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- قسم الإيرادات والمصروفات -->
+        <section id="incomes_expenses" class="view-section" style="display: none;">
+            <h2>إيرادات أخرى ومصروفات</h2>
+
+            <div class="form-container">
+                <h3>إضافة إيراد آخر</h3>
+                <form id="form-income" onsubmit="addOtherIncome(event)">
+                    <label>النوع:</label>
+                    <input type="text" id="inc-type" required placeholder="إيجار، غسيل، الخ...">
+                    <label>المبلغ:</label>
+                    <input type="number" id="inc-amount" step="0.01" required>
+                    <label>التفاصيل:</label>
+                    <input type="text" id="inc-desc">
+                    <button type="submit">إضافة إيراد</button>
+                </form>
+            </div>
+
+            <div class="form-container">
+                <h3>إضافة مصروف</h3>
+                <form id="form-expense" onsubmit="addExpense(event)">
+                    <label>النوع:</label>
+                    <input type="text" id="exp-type" required placeholder="كهرباء، رواتب، الخ...">
+                    <label>المبلغ:</label>
+                    <input type="number" id="exp-amount" step="0.01" required>
+                    <label>التفاصيل:</label>
+                    <input type="text" id="exp-desc">
+                    <button type="submit">إضافة مصروف</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- قسم التقارير -->
+        <section id="reports" class="view-section" style="display: none;">
+            <h2>التقارير اليومية (Consolidated Report)</h2>
+            <button onclick="generateReport()">توليد التقرير الموحد</button>
+            <div id="report-output">
+                <!-- التقرير يظهر هنا -->
+            </div>
+        </section>
+    </main>
+
+    <script src="db.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
